@@ -1,5 +1,4 @@
 # spotify-td
-* Note currently got this working on MACOS, windows support coming.
 
 ## Instructions
 Import TOX file into your TD project.
@@ -13,7 +12,9 @@ On the spotify desktop app enable the full screen lyrics.
 
 <img src="./markdown_assets/fullscreen.png" alt="fullscreen" width="600">
 
-
 Or have them be visible in the side bar.
 
 <img src="./markdown_assets/sidebar.png" alt="sidebar" width="600">
+
+* Currently working on only on MACOS, windows support coming.
+* This project uses your own desktop app and spotify account. Commercializing something like this not advisable, unless want to fight the spotify lawyers.
