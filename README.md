@@ -17,4 +17,4 @@ Or have them be visible in the side bar.
 <img src="./markdown_assets/sidebar.png" alt="sidebar" width="600">
 
 * Currently working on only on MACOS, windows support coming.
-* This project uses your own desktop app and spotify account. Commercializing something like this not advisable, unless want to fight the spotify lawyers.
+* This project uses your own desktop app and spotify account. Commercializing something like this not advisable, unless you want to fight the spotify lawyers.
