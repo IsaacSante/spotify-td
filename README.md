@@ -1,5 +1,5 @@
 # spotify-td
-[![Download TOX File](https://img.shields.io/badge/Download_TOX_%E2%86%93-ff4444?style=plastic)](https://github.com/IsaacSante/spotify-td/releases/latest/download/spotify_td.tox)
+[![Download TOX File](https://img.shields.io/badge/Download_TOX_%E2%86%93-ff4444?style=flat-square&logo=spotify&logoColor=white)](https://github.com/IsaacSante/spotify-td/releases/latest/download/spotify_td.tox)
 
 * Currently working and tested on MACOS. Still working on windows OS.
 * This project uses your own desktop app and spotify account. Commercializing something like this is not advisable, unless you want to fight the spotify lawyers.
