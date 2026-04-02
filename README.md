@@ -1,5 +1,5 @@
 # spotify-td
-* Currently working on only on MACOS, windows support coming.
+* Currently working and tested on MACOS. There is code in place for Windows but dont have a computer to confirm its working.
 * This project uses your own desktop app and spotify account. Commercializing something like this is not advisable, unless you want to fight the spotify lawyers.
 
 ## Instructions
