@@ -1,6 +1,6 @@
 # spotify-td
 * Currently working on only on MACOS, windows support coming.
-* This project uses your own desktop app and spotify account. Commercializing something like this not advisable, unless you want to fight the spotify lawyers.
+* This project uses your own desktop app and spotify account. Commercializing something like this is not advisable, unless you want to fight the spotify lawyers.
 
 ## Instructions
 Import TOX file into your TD project.
