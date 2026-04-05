@@ -20,3 +20,8 @@ Or have them be visible in the side bar.
 
 <img src="./markdown_assets/sidebar.png" alt="sidebar" width="600">
 
+## TODO
+
+- decouple python code into its own components
+- add support for windows
+- add a delay per word, per lyric line effect control
