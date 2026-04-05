@@ -25,3 +25,8 @@ Or have them be visible in the side bar.
 - decouple python code into its own components
 - add support for windows
 - add a delay per word, per lyric line effect control
+- add state tracking for songs with lyrics
+    - has_lyric?: bool
+    - first_lyric_played: bool
+    - last_lyric_played: bool
+- get album image data
