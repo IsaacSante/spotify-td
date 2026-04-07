@@ -152,3 +152,4 @@ GET http://localhost:8976/health
 | `extract_frames.py` | Video → frames with dedup (OpenCV) |
 | `generate_embeddings.py` | Frames → CLIP embeddings (.npy + .pkl) |
 | `server.py` | Lookup server — word in, video path + timestamp out (run alongside TD) |
+| `utils/download_yt_videos.py` | Helper to download YouTube videos/playlists via yt-dlp |
