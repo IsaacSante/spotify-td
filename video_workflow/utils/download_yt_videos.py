@@ -3,6 +3,9 @@
 utils/download_yt_videos.py
 Download videos from YouTube URLs or playlists using yt-dlp.
 
+Downloads video-only (no audio) at up to 1080p, encoded as H.264 mp4
+for compatibility with QuickTime and TouchDesigner.
+
 Usage:
   python utils/download_yt_videos.py "https://youtube.com/watch?v=xxxxx" ./my_videos
   python utils/download_yt_videos.py "https://youtube.com/playlist?list=PLxxxxx" ./my_videos
@@ -12,9 +15,8 @@ Accepts:
   - A single YouTube URL (video or playlist)
   - A .txt file with one URL per line
 
-Requires yt-dlp:
-  brew install yt-dlp
-  # or: pip install yt-dlp
+Requires:
+  brew install yt-dlp ffmpeg
 """
 
 import subprocess
@@ -30,8 +32,12 @@ def download(url: str, output_dir: str):
 
     cmd = [
         "yt-dlp",
-        "--format", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best",
+        "--format", "bestvideo[height<=1080][ext=mp4][vcodec^=avc1]/"
+                    "bestvideo[height<=1080][ext=mp4]/"
+                    "bestvideo[height<=1080]",
+        "--no-audio",
         "--merge-output-format", "mp4",
+        "--postprocessor-args", "ffmpeg:-an -c:v libx264 -preset fast -crf 18",
         "--output", os.path.join(output_dir, "%(title)s.%(ext)s"),
         "--restrict-filenames",
         "--no-overwrites",
