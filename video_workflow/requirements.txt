@@ -1,0 +1,7 @@
+opencv-python-headless
+transformers
+torch
+Pillow
+numpy
+tqdm
+flask
