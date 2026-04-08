@@ -1,0 +1,9 @@
+opencv-python-headless
+transformers>=4.49.0
+torch
+Pillow
+numpy
+tqdm
+flask
+sentencepiece
+accelerate

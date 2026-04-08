@@ -9,3 +9,5 @@ __MACOSX
 # Project
 Backup/
 *.*.toe
+videos/
+output/
