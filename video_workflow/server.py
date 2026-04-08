@@ -1,6 +1,6 @@
 """
 server.py
-Lightweight lookup server. Loads CLIP + embeddings once on startup,
+Lightweight lookup server. Loads SigLIP 2 + embeddings once on startup,
 takes a word query, returns the source video path and timestamp.
 
 Usage:
@@ -24,9 +24,11 @@ import numpy as np
 import pickle
 import torch
 from flask import Flask, request, jsonify
-from transformers import CLIPProcessor, CLIPModel
+from transformers import AutoModel, AutoProcessor
 
 app = Flask(__name__)
+
+DEFAULT_MODEL = "google/siglip2-so400m-patch14-384"
 
 # globals loaded on startup
 model = None
@@ -36,7 +38,7 @@ image_paths = None
 manifest = None  # hash → absolute video path
 
 
-def load(output_dir: str):
+def load(output_dir: str, model_name: str = DEFAULT_MODEL):
     global model, processor, image_embeddings, image_paths, manifest
 
     emb_file = os.path.join(output_dir, "embeddings", "image_embeddings.npy")
@@ -47,9 +49,9 @@ def load(output_dir: str):
         if not os.path.exists(f):
             raise FileNotFoundError(f"{label} not found: {f}. Run the pipeline first.")
 
-    print("Loading CLIP model...")
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    print(f"Loading model: {model_name}...")
+    model = AutoModel.from_pretrained(model_name)
+    processor = AutoProcessor.from_pretrained(model_name)
     model.eval()
 
     print("Loading embeddings...")
@@ -78,13 +80,15 @@ def _parse_frame_path(frame_path: str) -> dict:
     timestamp = match.group(2)
     video_path = manifest.get(vid_hash)
 
-    return {"video": video_path, "timestamp": timestamp}
+    return {"video": video_path, "timestamp": timestamp, "frame": os.path.basename(frame_path)}
 
 
 def _encode_text(text: str) -> np.ndarray:
-    inputs = processor(text=[text], images=None, return_tensors="pt", padding=True)
+    inputs = processor(text=[text], return_tensors="pt", padding="max_length", truncation=True)
     with torch.no_grad():
         features = model.get_text_features(**inputs)
+        if not isinstance(features, torch.Tensor):
+            features = features.pooler_output
     emb = features.numpy()
     emb = emb / (np.linalg.norm(emb, axis=1, keepdims=True) + 1e-8)
     return emb
@@ -103,7 +107,11 @@ def lookup():
     scores = (text_emb @ image_embeddings.T)[0]
     top_idx = np.argsort(scores)[-top_k:][::-1]
 
-    results = [_parse_frame_path(image_paths[i]) for i in top_idx]
+    results = []
+    for i in top_idx:
+        result = _parse_frame_path(image_paths[i])
+        result["score"] = float(scores[i])
+        results.append(result)
 
     if top_k == 1:
         return jsonify({"query": query, **results[0]})
@@ -125,7 +133,9 @@ if __name__ == "__main__":
                         help="Output directory from the build pipeline (default: ./output)")
     parser.add_argument("--port", type=int, default=8976)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--model", default=DEFAULT_MODEL,
+                        help=f"HuggingFace model name (default: {DEFAULT_MODEL})")
     args = parser.parse_args()
 
-    load(args.output)
+    load(args.output, args.model)
     app.run(host=args.host, port=args.port, debug=False)

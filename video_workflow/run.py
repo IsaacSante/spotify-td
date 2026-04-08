@@ -2,8 +2,8 @@
 run.py — master script for lyric-to-image pipeline
 
 Runs the full pipeline end-to-end:
-  1. Extract frames from videos in a folder
-  2. Generate CLIP embeddings for all frames
+  1. Extract frames from videos in a folder (parallel via multiprocessing)
+  2. Generate SigLIP 2 embeddings for all frames
 
 Usage:
   python run.py ./my_videos
@@ -16,13 +16,13 @@ from any source (YouTube downloads, screen recordings, stock footage, etc.)
 
 import argparse
 import sys
-from extract_frames import extract_frames
-from generate_embeddings import generate_embeddings
+from extract_frames import extract_frames, DEFAULT_INTERVAL, DEFAULT_HEAD_SKIP, DEFAULT_TAIL_SKIP, DEFAULT_SIM_THRESHOLD
+from generate_embeddings import generate_embeddings, DEFAULT_MODEL
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="lyric-to-image: video frames → CLIP embeddings"
+        description="lyric-to-image: video frames → SigLIP 2 embeddings"
     )
     parser.add_argument(
         "video_dir",
@@ -36,26 +36,43 @@ def main():
     parser.add_argument(
         "--interval",
         type=float,
-        default=3.0,
-        help="Seconds between extracted frames (default: 3)",
+        default=DEFAULT_INTERVAL,
+        help=f"Seconds between extracted frames (default: {DEFAULT_INTERVAL})",
+    )
+    parser.add_argument(
+        "--head-skip",
+        type=float,
+        default=DEFAULT_HEAD_SKIP,
+        help=f"Skip first N seconds of each video (default: {DEFAULT_HEAD_SKIP})",
     )
     parser.add_argument(
         "--tail-skip",
         type=float,
-        default=10.0,
-        help="Skip last N seconds of each video (default: 10)",
+        default=DEFAULT_TAIL_SKIP,
+        help=f"Skip last N seconds of each video (default: {DEFAULT_TAIL_SKIP})",
     )
     parser.add_argument(
         "--sim-threshold",
         type=float,
-        default=0.98,
-        help="Skip frame if histogram similarity to last saved frame > this (default: 0.98)",
+        default=DEFAULT_SIM_THRESHOLD,
+        help=f"Skip frame if histogram similarity to last saved frame > this (default: {DEFAULT_SIM_THRESHOLD})",
+    )
+    parser.add_argument(
+        "-j", "--workers",
+        type=int,
+        default=0,
+        help="Number of parallel workers for frame extraction (default: auto)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=16,
-        help="Batch size for CLIP embedding generation (default: 16)",
+        default=32,
+        help="Batch size for SigLIP embedding generation (default: 32)",
+    )
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"HuggingFace model for embeddings (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--force",
@@ -72,9 +89,11 @@ def main():
         video_dir=args.video_dir,
         output_dir=args.output,
         interval=args.interval,
+        head_skip=args.head_skip,
         tail_skip=args.tail_skip,
         sim_threshold=args.sim_threshold,
         force=args.force,
+        workers=args.workers,
     )
 
     if not frames_dir:
@@ -84,12 +103,13 @@ def main():
     # Step 2: generate embeddings
     print()
     print("=" * 60)
-    print("STEP 2: Generating CLIP embeddings")
+    print("STEP 2: Generating SigLIP 2 embeddings")
     print("=" * 60)
     generate_embeddings(
         frames_dir=frames_dir,
         output_dir=args.output,
         batch_size=args.batch_size,
+        model_name=args.model,
         force=args.force,
     )
 
@@ -99,6 +119,9 @@ def main():
     print(f"  Frames:     {frames_dir}/")
     print(f"  Embeddings: {args.output}/embeddings/image_embeddings.npy")
     print(f"  Paths:      {args.output}/embeddings/image_paths.pkl")
+    print()
+    print("Start the lookup server:")
+    print(f"  python server.py --output {args.output}")
     print("=" * 60)
 
 

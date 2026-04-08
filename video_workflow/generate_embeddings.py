@@ -1,9 +1,12 @@
 """
 generate_embeddings.py
-Generates CLIP embeddings for all images in a frames directory.
+Generates SigLIP 2 embeddings for all images in a frames directory.
+
+Uses google/siglip2-so400m-patch14-384 for rich semantic understanding
+of visual content (composition, mood, style, action, spatial layout).
 
 Outputs:
-  {output_dir}/embeddings/image_embeddings.npy  — (N, 512) float32, L2-normalized
+  {output_dir}/embeddings/image_embeddings.npy  — (N, 1152) float32, L2-normalized
   {output_dir}/embeddings/image_paths.pkl        — list of N file paths
 
 Can be run standalone:
@@ -16,12 +19,13 @@ import pickle
 import argparse
 import torch
 from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
+from transformers import AutoModel, AutoProcessor
 from tqdm import tqdm
 
 Image.MAX_IMAGE_PIXELS = None
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+DEFAULT_MODEL = "google/siglip2-so400m-patch14-384"
 
 
 def _get_device() -> str:
@@ -47,10 +51,11 @@ def generate_embeddings(
     frames_dir: str,
     output_dir: str = "output",
     batch_size: int = 16,
+    model_name: str = DEFAULT_MODEL,
     force: bool = False,
 ):
     """
-    Generate CLIP embeddings for all images in frames_dir.
+    Generate SigLIP 2 embeddings for all images in frames_dir.
 
     Saves image_embeddings.npy and image_paths.pkl to {output_dir}/embeddings/.
     """
@@ -71,10 +76,12 @@ def generate_embeddings(
         return
 
     device = _get_device()
+    print(f"Model: {model_name}")
     print(f"Device: {device} | Images: {len(image_paths)} | Batch size: {batch_size}")
 
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    model = AutoModel.from_pretrained(model_name).to(device)
+    processor = AutoProcessor.from_pretrained(model_name)
+    model.eval()
 
     all_embeddings = []
     valid_paths = []
@@ -94,11 +101,14 @@ def generate_embeddings(
         if not imgs:
             continue
 
-        inputs = processor(text=None, images=imgs, return_tensors="pt", padding=True)
+        inputs = processor(images=imgs, return_tensors="pt", padding=True)
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
         with torch.no_grad():
             features = model.get_image_features(**inputs)
+            # SigLIP 2 returns an output object; extract the pooled tensor
+            if not isinstance(features, torch.Tensor):
+                features = features.pooler_output
 
         all_embeddings.append(features.cpu().numpy())
         valid_paths.extend(batch_valid)
@@ -125,10 +135,12 @@ def generate_embeddings(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate CLIP embeddings for frames")
+    parser = argparse.ArgumentParser(description="Generate SigLIP 2 embeddings for frames")
     parser.add_argument("frames_dir", help="Directory containing frame images")
     parser.add_argument("--output", "-o", default="output")
     parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--model", default=DEFAULT_MODEL,
+                        help=f"HuggingFace model name (default: {DEFAULT_MODEL})")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
-    generate_embeddings(args.frames_dir, args.output, args.batch_size, args.force)
+    generate_embeddings(args.frames_dir, args.output, args.batch_size, args.model, args.force)
