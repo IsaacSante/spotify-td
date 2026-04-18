@@ -14,6 +14,9 @@ Query:
 
   GET http://localhost:8976/lookup?q=ocean&top=3
   → {"query": "ocean", "results": [{"video": "...", "timestamp": "00:06"}, ...]}
+
+  GET http://localhost:8976/lookup_converted?q=fire
+  → {"query": "fire", "video": "/abs/path/to/videos_hap/nature.mov", "timestamp": "01:24"}
 """
 
 import argparse
@@ -36,10 +39,11 @@ processor = None
 image_embeddings = None
 image_paths = None
 manifest = None  # hash → absolute video path
+HAP_DIR = None   # directory with HAP-converted .mov files
 
 
-def load(output_dir: str, model_name: str = DEFAULT_MODEL):
-    global model, processor, image_embeddings, image_paths, manifest
+def load(output_dir: str, model_name: str = DEFAULT_MODEL, hap_dir: str = "videos_hap"):
+    global model, processor, image_embeddings, image_paths, manifest, HAP_DIR
 
     emb_file = os.path.join(output_dir, "embeddings", "image_embeddings.npy")
     paths_file = os.path.join(output_dir, "embeddings", "image_paths.pkl")
@@ -63,6 +67,19 @@ def load(output_dir: str, model_name: str = DEFAULT_MODEL):
     with open(manifest_file) as f:
         manifest = json.load(f)
 
+    # Resolve HAP directory
+    if os.path.isabs(hap_dir):
+        resolved_hap = hap_dir
+    else:
+        resolved_hap = os.path.join(os.path.dirname(os.path.abspath(output_dir)), hap_dir)
+
+    if os.path.isdir(resolved_hap):
+        HAP_DIR = os.path.abspath(resolved_hap)
+        hap_count = len([f for f in os.listdir(HAP_DIR) if f.endswith(".mov")])
+        print(f"HAP directory: {HAP_DIR} ({hap_count} files)")
+    else:
+        print(f"HAP directory not found: {resolved_hap} (/lookup_converted will be unavailable)")
+
     print(f"Ready. {len(image_paths)} frames from {len(manifest)} video(s).")
 
 
@@ -83,6 +100,16 @@ def _parse_frame_path(frame_path: str) -> dict:
     return {"video": video_path, "timestamp": timestamp, "frame": os.path.basename(frame_path)}
 
 
+def _swap_to_hap(result: dict) -> dict:
+    """Replace the video path with the HAP .mov equivalent if it exists."""
+    if result["video"] and HAP_DIR:
+        stem = os.path.splitext(os.path.basename(result["video"]))[0]
+        hap_path = os.path.join(HAP_DIR, stem + ".mov")
+        if os.path.exists(hap_path):
+            result["video"] = hap_path
+    return result
+
+
 def _encode_text(text: str) -> np.ndarray:
     inputs = processor(text=[text], return_tensors="pt", padding="max_length", truncation=True)
     with torch.no_grad():
@@ -94,15 +121,8 @@ def _encode_text(text: str) -> np.ndarray:
     return emb
 
 
-@app.route("/lookup", methods=["GET"])
-def lookup():
-    query = request.args.get("q", "").strip()
-    if not query:
-        return jsonify({"error": "missing ?q= parameter"}), 400
-
-    top_k = request.args.get("top", 1, type=int)
-    top_k = max(1, min(top_k, 50))
-
+def _do_lookup(query: str, top_k: int) -> list[dict]:
+    """Shared lookup logic for both routes."""
     text_emb = _encode_text(query)
     scores = (text_emb @ image_embeddings.T)[0]
     top_idx = np.argsort(scores)[-top_k:][::-1]
@@ -112,6 +132,38 @@ def lookup():
         result = _parse_frame_path(image_paths[i])
         result["score"] = float(scores[i])
         results.append(result)
+    return results
+
+
+@app.route("/lookup", methods=["GET"])
+def lookup():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "missing ?q= parameter"}), 400
+
+    top_k = request.args.get("top", 1, type=int)
+    top_k = max(1, min(top_k, 50))
+
+    results = _do_lookup(query, top_k)
+
+    if top_k == 1:
+        return jsonify({"query": query, **results[0]})
+    return jsonify({"query": query, "results": results})
+
+
+@app.route("/lookup_converted", methods=["GET"])
+def lookup_converted():
+    if not HAP_DIR:
+        return jsonify({"error": "HAP directory not configured"}), 503
+
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "missing ?q= parameter"}), 400
+
+    top_k = request.args.get("top", 1, type=int)
+    top_k = max(1, min(top_k, 50))
+
+    results = [_swap_to_hap(r) for r in _do_lookup(query, top_k)]
 
     if top_k == 1:
         return jsonify({"query": query, **results[0]})
@@ -124,6 +176,7 @@ def health():
         "status": "ok",
         "frames": len(image_paths) if image_paths else 0,
         "videos": len(manifest) if manifest else 0,
+        "hap_dir": HAP_DIR,
     })
 
 
@@ -135,7 +188,9 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help=f"HuggingFace model name (default: {DEFAULT_MODEL})")
+    parser.add_argument("--hap-dir", default="videos_hap",
+                        help="Directory with HAP-converted .mov files (default: ./videos_hap)")
     args = parser.parse_args()
 
-    load(args.output, args.model)
+    load(args.output, args.model, args.hap_dir)
     app.run(host=args.host, port=args.port, debug=False)
